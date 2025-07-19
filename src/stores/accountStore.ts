@@ -36,6 +36,11 @@ export const useAccountStore = defineStore('account', () => {
       if (data.labels !== undefined) {
         const labelArray = data.labels.split(';').map(label => label.trim()).filter(label => label)
         const labelObjects: LabelItem[] = labelArray.map(text => ({ text }))
+        account.labels = data.labels
+      }
+      
+      if (data.recordType === 'LDAP') {
+        account.password = null
       }
       
       saveAccounts()

@@ -1,5 +1,9 @@
 <template>
   <div class="account-management">
+    <div v-if="showSuccessMessage" class="success-message">
+      {{ successMessage }}
+    </div>
+    
     <div class="header">
       <h1>Account Management</h1>
       <button @click="addAccount" class="add-button">
@@ -40,7 +44,7 @@
         <div class="cell">
           <select
             v-model="account.recordType"
-            @change="updateAccount(account.id, { recordType: account.recordType })"
+            @change="handleRecordTypeChange(account)"
             class="select-field"
           >
             <option value="Local">Local</option>
@@ -51,6 +55,7 @@
         <div class="cell">
           <input
             v-model="account.login"
+            @input="validateOnChange(account)"
             @blur="validateAndUpdate(account)"
             type="text"
             placeholder="Enter login"
@@ -63,14 +68,19 @@
           <div v-if="account.recordType === 'Local'" class="password-container">
             <input
               v-model="account.password"
+              @input="validateOnChange(account)"
               @blur="validateAndUpdate(account)"
-              type="password"
+              :type="passwordVisible[account.id] ? 'text' : 'password'"
               placeholder="Enter password"
               maxlength="100"
               :class="['input-field password-input', { 'error': !isValid(account.id).password }]"
             />
-            <button class="password-toggle">
-              <span>👁️</span>
+            <button 
+              @click="togglePasswordVisibility(account.id)" 
+              class="password-toggle"
+              type="button"
+            >
+              <span>{{ passwordVisible[account.id] ? '🙈' : '👁️' }}</span>
             </button>
           </div>
         </div>
@@ -93,9 +103,37 @@ import type { Account, AccountValidation } from '@/types/account'
 const accountStore = useAccountStore()
 const accounts = computed(() => accountStore.accounts)
 const validations = ref<Record<string, AccountValidation>>({})
+const passwordVisible = ref<Record<string, boolean>>({})
+const isLoading = ref(false)
+const showSuccessMessage = ref(false)
+const successMessage = ref('')
 
 const addAccount = () => {
   accountStore.addAccount()
+  showSuccess('Account added successfully!')
+}
+
+const showSuccess = (message: string) => {
+  successMessage.value = message
+  showSuccessMessage.value = true
+  setTimeout(() => {
+    showSuccessMessage.value = false
+  }, 3000)
+}
+
+const togglePasswordVisibility = (id: string) => {
+  passwordVisible.value[id] = !passwordVisible.value[id]
+}
+
+const handleRecordTypeChange = (account: Account) => {
+  if (account.recordType === 'LDAP') {
+    account.password = null
+  } else if (account.recordType === 'Local' && !account.password) {
+    account.password = ''
+  }
+  
+  updateAccount(account.id, { recordType: account.recordType, password: account.password })
+  validateOnChange(account)
 }
 
 const updateAccount = (id: string, data: any) => {
@@ -103,7 +141,9 @@ const updateAccount = (id: string, data: any) => {
 }
 
 const deleteAccount = (id: string) => {
-  accountStore.deleteAccount(id)
+  if (confirm('Are you sure you want to delete this account?')) {
+    accountStore.deleteAccount(id)
+  }
 }
 
 const validateAndUpdate = (account: Account) => {
@@ -122,6 +162,15 @@ const validateAndUpdate = (account: Account) => {
   }
 }
 
+const validateOnChange = (account: Account) => {
+  const validation: AccountValidation = {
+    login: account.login.trim().length > 0,
+    password: account.recordType === 'LDAP' || !!(account.password && account.password.trim().length > 0)
+  }
+  
+  validations.value[account.id] = validation
+}
+
 const isValid = (id: string) => {
   return validations.value[id] || { login: true, password: true }
 }
@@ -132,6 +181,28 @@ const isValid = (id: string) => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+}
+
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  text-align: center;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .header {
@@ -245,6 +316,10 @@ const isValid = (id: string) => {
 .input-field.error {
   border-color: #dc3545;
   box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+}
+
+.input-field.error::placeholder {
+  color: #dc3545;
 }
 
 .password-container {
